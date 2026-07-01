@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Db e Back-end
+__pycache__/
+*.pyc
+.env
+db.sqlite3
+node_modules/
+dist/
+.DS_Store
