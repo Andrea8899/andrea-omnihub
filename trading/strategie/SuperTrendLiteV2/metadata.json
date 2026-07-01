@@ -1,8 +1,8 @@
 {
     "nome_strategia": "SuperTrendLiteV2",
-    "ultima_modifica": "01/07/2026, 23:40:49",
+    "ultima_modifica": "02/07/2026, 00:18:35",
     "fondamenta": {
-        "entrata": "Entrata in buysserm.",
+        "entrata": "Entrata in buy e sell supertrend",
         "uscita": "",
         "stopLoss": "",
         "lottaggio": "",
