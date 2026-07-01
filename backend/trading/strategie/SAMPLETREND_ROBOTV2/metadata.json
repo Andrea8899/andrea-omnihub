@@ -1,0 +1,12 @@
+{
+    "nome_strategia": "SAMPLETREND_ROBOTV2",
+    "ultima_modifica": "01/07/2026, 23:14:40",
+    "fondamenta": {
+        "entrata": "Incrocio rialzista di due medie mobili sul grafico orario.",
+        "uscita": "Incrocio ribassista opposto o target fisso.",
+        "stopLoss": "Posizionato sotto l'ultimo minimo relativo dell'oscillazione.",
+        "lottaggio": "Lotto fisso a 0.1 o 1% del capitale disponibile.",
+        "parzializzazione": "Chiusura del 50% della posizione al raggiungimento del primo target.",
+        "trailingStop": "Attivo dopo 20 pip di profitto con passo di 5 pip."
+    }
+}
