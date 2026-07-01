@@ -1,0 +1,12 @@
+{
+    "nome_strategia": "StartegiaTest",
+    "ultima_modifica": "02/07/2026, 00:29:10",
+    "fondamenta": {
+        "entrata": "",
+        "uscita": "",
+        "stopLoss": "",
+        "lottaggio": "",
+        "parzializzazione": "",
+        "trailingStop": ""
+    }
+}
