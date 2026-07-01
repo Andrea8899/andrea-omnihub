@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, String, Boolean, Text, JSON, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sync_service import sync_create_or_update, sync_delete
 
 # ==========================================
 # 1. CONFIGURAZIONE DATABASE CONFIG & ORM
@@ -180,6 +181,7 @@ def create_strategy(strategy_data: StrategyCreate, db: Session = Depends(get_db)
     db.add(db_strategy)
     db.commit()
     db.refresh(db_strategy)
+    sync_create_or_update(db_strategy)
     return db_strategy
 
 
@@ -217,6 +219,7 @@ def update_strategy(strategy_id: str, updated_data: dict, db: Session = Depends(
 
     db.commit()
     db.refresh(db_strategy)
+    sync_create_or_update(db_strategy)
     return db_strategy
 
 
@@ -227,6 +230,7 @@ def delete_strategy(strategy_id: str, db: Session = Depends(get_db)):
     if not db_strategy:
         raise HTTPException(status_code=404, detail="Strategia inesistente.")
     
+    sync_delete(db_strategy.title)
     db.delete(db_strategy)
     db.commit()
     return {"detail": "Strategia rimossa con successo dal database locale."}
