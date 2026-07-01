@@ -132,7 +132,7 @@ def get_strategies(db: Session = Depends(get_db)):
     strategies = db.query(DBStrategy).all()
     
     # Se il DB è vuoto, inseriamo un esempio iniziale di fallback
-    if not strategies:
+    '''if not strategies:
         now = datetime.now()
         default_strat = DBStrategy(
             id="1",
@@ -155,6 +155,7 @@ def get_strategies(db: Session = Depends(get_db)):
         db.add(default_strat)
         db.commit()
         strategies = [default_strat]
+        '''
         
     return strategies
 
