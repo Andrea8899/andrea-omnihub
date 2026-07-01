@@ -1,6 +1,6 @@
 {
     "nome_strategia": "SAMPLETREND_ROBOTV2",
-    "ultima_modifica": "01/07/2026, 23:14:40",
+    "ultima_modifica": "01/07/2026, 23:39:18",
     "fondamenta": {
         "entrata": "Incrocio rialzista di due medie mobili sul grafico orario.",
         "uscita": "Incrocio ribassista opposto o target fisso.",
