@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Percorso: andrea-omnihub/trading/strategie/
-BASE_PATH = Path("trading/strategie")
+BASE_PATH = Path(__file__).resolve().parent.parent / "trading" / "strategie"
 
 def sync_create_or_update(strategy):
     """Crea o aggiorna i file su GitHub."""

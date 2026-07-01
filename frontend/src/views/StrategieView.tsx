@@ -27,7 +27,7 @@ interface Strategy {
   createdDisplay: string;
   modified: string;
   isSavedDB: boolean;
-  isSavedGit: boolean;
+  isSavedGit: boolean; // Verrà sovrascritto dinamicamente dal polling dello status
   code: string;
   blocks: {
     entrata: string;
@@ -97,6 +97,38 @@ export default function StrategieView() {
     return () => clearInterval(interval);
   }, []);
 
+  // NUOVO EFFECT: Controlla periodicamente lo stato di GitHub per tutte le strategie caricate
+  useEffect(() => {
+    if (strategieData.length === 0) return;
+
+    const checkGitStatuses = async () => {
+      const updatedStrategies = await Promise.all(
+        strategieData.map(async (strat) => {
+          try {
+            const res = await fetch(`http://127.0.0.1:8000/api/strategies/status/${strat.id}`);
+            if (res.ok) {
+              const data = await res.json();
+              return { ...strat, isSavedGit: data.is_on_github };
+            }
+          } catch (e) {
+            console.error("Errore polling status Git", e);
+          }
+          return strat;
+        })
+      );
+
+      // Evita cicli infiniti aggiornando lo stato solo se qualcosa è effettivamente cambiato
+      const isChanged = JSON.stringify(updatedStrategies.map(s => s.isSavedGit)) !== JSON.stringify(strategieData.map(s => s.isSavedGit));
+      if (isChanged) {
+        setStrategieData(updatedStrategies);
+      }
+    };
+
+    // Eseguiamo il controllo ogni 4 secondi per intercettare la fine del background task
+    const gitInterval = setInterval(checkGitStatuses, 4000);
+    return () => clearInterval(gitInterval);
+  }, [strategieData]);
+
   const checkHealth = async () => {
     try {
       const res = await fetch("http://127.0.0.1:8000/api/health");
@@ -116,9 +148,15 @@ export default function StrategieView() {
       const response = await fetch(API_URL);
       if (response.ok) {
         const data = await response.json();
-        setStrategieData(data);
-        if (data.length > 0 && !selectedStrategyId) {
-          setSelectedStrategyId(data[0].id);
+        // Inizializziamo isSavedDB a true per i dati provenienti dal database
+        const mappedData = data.map((item: any) => ({
+          ...item,
+          isSavedDB: true,
+          isSavedGit: item.isSavedGit ?? false
+        }));
+        setStrategieData(mappedData);
+        if (mappedData.length > 0 && !selectedStrategyId) {
+          setSelectedStrategyId(mappedData[0].id);
         }
       }
     } catch {
@@ -206,7 +244,8 @@ export default function StrategieView() {
       if (response.ok) {
         setIsEditing(false);
         setBackupBlocks(null);
-        showToast('success', 'Strategia aggiornata nel database con successo.');
+        // TOAST AGGIORNATO CON CODA DI BACKGROUND
+        showToast('success', 'Modifiche salvate! Sincronizzazione GitHub avviata in background.');
         loadStrategies();
       } else {
         const err = await response.json();
@@ -283,7 +322,8 @@ export default function StrategieView() {
         setNewFileName('');
         setNewBlocks({ entrata: '', uscita: '', stopLoss: '', lottaggio: '', parzializzazione: '', trailingStop: '' });
         setSelectedStrategyId(newStrategyData.id);
-        showToast('success', 'Nuova strategia creata e indicizzata con successo!');
+        // TOAST AGGIORNATO CON CODA DI BACKGROUND
+        showToast('success', 'Nuova strategia creata! Sincronizzazione GitHub avviata in background.');
         loadStrategies();
       } else {
         const err = await response.json();
@@ -302,7 +342,7 @@ export default function StrategieView() {
       const response = await fetch(`${API_URL}/${selectedStrategyId}`, { method: 'DELETE' });
       if (response.ok) {
         setSelectedStrategyId('');
-        showToast('success', 'Strategia rimossa definitivamente dal database.');
+        showToast('success', 'Eliminazione avviata! Rimozione da GitHub in corso.');
         loadStrategies();
       }
     } catch {
@@ -467,7 +507,9 @@ export default function StrategieView() {
                     <span className="text-md font-bold text-white tracking-wide">{strat.title}</span>
                     <div className="flex items-center space-x-3">
                       <Database className={`h-8 w-8 transition-colors ${strat.isSavedDB && dbConnected ? 'text-emerald-400' : 'text-slate-600'}`} />
-                      <GithubIcon className={strat.isSavedGit && gitConnected ? 'text-emerald-400' : 'text-slate-600'} />
+                      
+                      {/* ICONA GITHUB COMPLETAMENTE DINAMICA (Verde se presente sul FileSystem remoto) */}
+                      <GithubIcon className={`transition-colors ${strat.isSavedGit && gitConnected ? 'text-emerald-400' : 'text-slate-600'}`} />
                     </div>
                   </div>
                   <div className="space-y-1.5 text-xs text-slate-400 font-medium tracking-wide">
@@ -519,6 +561,7 @@ export default function StrategieView() {
                             
                             setStrategieData(prev => prev.map(s => s.id === currentStrategy.id ? { ...s, title: tempTitle.trim() } : s));
                             setIsEditingTitle(false);
+                            showToast('success', 'Titolo aggiornato in background.');
                             loadStrategies();
                           } catch (err) {}
                         }}

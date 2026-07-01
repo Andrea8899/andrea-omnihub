@@ -2,7 +2,7 @@
 import os
 from datetime import datetime
 from typing import List, Dict, Optional
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, String, Boolean, Text, JSON, text
@@ -67,6 +67,14 @@ class StrategyCreate(BaseModel):
     code: str
     blocks: StrategyBlocks
 
+# Schema usato per l'aggiornamento (PUT)
+class StrategyUpdate(BaseModel):
+    id: str
+    title: str
+    code: str
+    blocks: StrategyBlocks
+
+
 class StrategyResponse(BaseModel):
     id: str
     title: str
@@ -105,11 +113,10 @@ def health_check():
     """Ritorna lo stato di connessione del Database Locale per l'indicatore nella Sidebar."""
     db = SessionLocal()
     try:
-        # Usa text() per compatibilità con tutte le versioni di SQLAlchemy
         db.execute(text("SELECT 1"))
         return {"status": "connected"}
     except Exception as e:
-        print(f"⚠️ Errore Health Check Database: {e}") # Questo ti stamperà sul terminale l'errore reale se fallisce
+        print(f"⚠️ Errore Health Check Database: {e}")
         return {"status": "disconnected"}
     finally:
         db.close()
@@ -153,40 +160,40 @@ def get_strategies(db: Session = Depends(get_db)):
 
 
 @app.post("/api/strategies", response_model=StrategyResponse, status_code=status.HTTP_201_CREATED)
-def create_strategy(strategy_data: StrategyCreate, db: Session = Depends(get_db)):
+def create_strategy(strategy: StrategyCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Crea una nuova strategia nel Database con controllo duplicati sul titolo."""
-    # Controllo ID
-    existing_id = db.query(DBStrategy).filter(DBStrategy.id == strategy_data.id).first()
+    # Controllo ID corretto (usando 'strategy')
+    existing_id = db.query(DBStrategy).filter(DBStrategy.id == strategy.id).first()
     if existing_id:
         raise HTTPException(status_code=400, detail="ID Strategia già esistente.")
     
-    # Controllo Titolo Duplicato
-    existing_title = db.query(DBStrategy).filter(DBStrategy.title.like(strategy_data.title.strip())).first()
+    # Controllo Titolo Duplicato corretto
+    existing_title = db.query(DBStrategy).filter(DBStrategy.title.like(strategy.title.strip())).first()
     if existing_title:
-        raise HTTPException(status_code=400, detail=f"Esiste già una strategia con il nome '{strategy_data.title}'.")
+        raise HTTPException(status_code=400, detail=f"Esiste già una strategia con il nome '{strategy.title}'.")
 
     now = datetime.now()
     db_strategy = DBStrategy(
-        id=strategy_data.id,
-        title=strategy_data.title.strip(),
+        id=strategy.id,
+        title=strategy.title.strip(),
         created=now.isoformat(),
         createdDisplay=now.strftime("%d/%m/%Y, %H:%M:%S"),
         modified=now.strftime("%d/%m/%Y, %H:%M:%S"),
         isSavedDB=True,
         isSavedGit=True,
-        code=strategy_data.code,
-        blocks=strategy_data.blocks.dict()
+        code=strategy.code,
+        blocks=strategy.blocks.dict()
     )
     
     db.add(db_strategy)
     db.commit()
     db.refresh(db_strategy)
-    sync_create_or_update(db_strategy)
+    background_tasks.add_task(sync_create_or_update, db_strategy)
     return db_strategy
 
 
 @app.put("/api/strategies/{strategy_id}", response_model=StrategyResponse)
-def update_strategy(strategy_id: str, updated_data: dict, db: Session = Depends(get_db)):
+def update_strategy(strategy_id: str, updated_data: StrategyUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Aggiorna i blocchi di testo della strategia o il suo codice sorgente con controllo duplicati."""
     db_strategy = db.query(DBStrategy).filter(DBStrategy.id == strategy_id).first()
     if not db_strategy:
@@ -194,45 +201,42 @@ def update_strategy(strategy_id: str, updated_data: dict, db: Session = Depends(
 
     now = datetime.now()
     
-    # CONTROLLO DUPLICATO NOME: Se viene inviato un nuovo titolo, verifica che non esista già
-    if "title" in updated_data:
-        new_title = updated_data["title"].strip()
-        # Cerca se esiste un'ALTRA strategia (con ID diverso) che ha già questo titolo (case-insensitive)
-        duplicate = db.query(DBStrategy).filter(
-            DBStrategy.title.like(new_title), 
-            DBStrategy.id != strategy_id
-        ).first()
-        
-        if duplicate:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Impossibile rinominare: esiste già una strategia chiamata '{new_title}'."
-            )
-        db_strategy.title = new_title
-
-    if "code" in updated_data:
-        db_strategy.code = updated_data["code"]
-    if "blocks" in updated_data:
-        db_strategy.blocks = updated_data["blocks"]
-        
+    # CONTROLLO DUPLICATO NOME (Accesso corretto tramite l'oggetto Pydantic 'updated_data')
+    new_title = updated_data.title.strip()
+    duplicate = db.query(DBStrategy).filter(
+        DBStrategy.title.like(new_title), 
+        DBStrategy.id != strategy_id
+    ).first()
+    
+    if duplicate:
+        raise HTTPException(
+            status_code=400, 
+            network_detail=f"Impossibile rinominare: esiste già una strategia chiamata '{new_title}'."
+        )
+    
+    # Aggiornamento dei campi
+    db_strategy.title = new_title
+    db_strategy.code = updated_data.code
+    db_strategy.blocks = updated_data.blocks.dict()
     db_strategy.modified = now.strftime("%d/%m/%Y, %H:%M:%S")
 
     db.commit()
     db.refresh(db_strategy)
-    sync_create_or_update(db_strategy)
+    background_tasks.add_task(sync_create_or_update, db_strategy)
     return db_strategy
 
 
 @app.delete("/api/strategies/{strategy_id}")
-def delete_strategy(strategy_id: str, db: Session = Depends(get_db)):
+def delete_strategy(strategy_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Elimina definitivamente la strategia cercata dal database locale."""
     db_strategy = db.query(DBStrategy).filter(DBStrategy.id == strategy_id).first()
     if not db_strategy:
         raise HTTPException(status_code=404, detail="Strategia inesistente.")
     
-    sync_delete(db_strategy.title)
+    title = db_strategy.title
     db.delete(db_strategy)
     db.commit()
+    background_tasks.add_task(sync_delete, title)
     return {"detail": "Strategia rimossa con successo dal database locale."}
 
 
