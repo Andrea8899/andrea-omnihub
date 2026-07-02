@@ -126,6 +126,30 @@ def health_check():
 # 6. ROTTE API CRUD PER LE STRATEGIE
 # ==========================================
 
+@app.get("/api/strategies/status/{strategy_id}")
+def get_strategy_status(strategy_id: str, db: Session = Depends(get_db)):
+    """Controlla lo stato di GitHub per una strategia specifica."""
+    # Cerchiamo forzando l'ID come stringa pulita
+    strategy_id_str = str(strategy_id).strip()
+    
+    strategy = db.query(DBStrategy).filter(DBStrategy.id == strategy_id_str).first()
+    
+    # Se ancora non la trova, proviamo a controllare se per caso è salvata senza stringa
+    if not strategy:
+        strategy = db.query(DBStrategy).filter(DBStrategy.id == strategy_id).first()
+        
+    if not strategy:
+        # Se proprio non esiste nel DB
+        raise HTTPException(status_code=404, detail=f"Strategia {strategy_id} non trovata nel DB.")
+        
+    # LOG DI CONTROLLO (Così vedi nel terminale se la trova!)
+    print(f"🔍 Strategia trovata! Titolo: {strategy.title} - Git Status: {strategy.isSavedGit}")    
+    
+    
+    # Qui restituisci lo stato reale leggendo il tuo sync_service o il campo del DB
+    # Esempio basato sul tuo campo:
+    return {"is_on_github": strategy.isSavedGit}
+    
 @app.get("/api/strategies", response_model=List[StrategyResponse])
 def get_strategies(db: Session = Depends(get_db)):
     """Ritorna l'elenco di tutte le strategie presenti nel Database."""
@@ -157,7 +181,7 @@ def get_strategies(db: Session = Depends(get_db)):
         strategies = [default_strat]
         '''
         
-    return strategies
+    return strategies   
 
 
 @app.post("/api/strategies", response_model=StrategyResponse, status_code=status.HTTP_201_CREATED)
