@@ -1,0 +1,12 @@
+{
+    "nome_strategia": "StrategiaPythonV1",
+    "ultima_modifica": "02/07/2026, 17:08:14",
+    "fondamenta": {
+        "entrata": "",
+        "uscita": "",
+        "stopLoss": "",
+        "lottaggio": "",
+        "parzializzazione": "",
+        "trailingStop": ""
+    }
+}
